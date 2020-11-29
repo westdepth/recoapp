@@ -28,157 +28,62 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
   </head>
   <body style="height:100%">
-    <video id="player" muted autoplay width=320 height=240</video>
-    <canvas id="snapshot" width=320 height=240></canvas>
+    <img src="receipt_sample.png" id="image" alt="text">
+    <canvas id="canvas"></canvas>
     <div>
-        Barcode text : <span id="rawValue"></span>
+        Text : <span id="rawValue"></span>
     </div>
-    <button id="start">Start</button>
-    <button id="stop">Stop</button>
+
     <script>
-        const video = document.getElementById('player');
-        const canvas = document.getElementById('snapshot');
+        const image = document.getElementById('image');
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let videoTracks;
-        let localStream = null;
-        let captureTimer = null;
-        const fps = 10;
-        let medias = {
-            video:
-            {
-                width: 320,
-                height: 240,
-                facingMode:
-                {
-                    exact: "environment" // リアカメラを使用
-                }
-            },
-            audio: false
+        let scale = 1;
+
+        image.onload = function()
+        {
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image,
+                0, 0, image.width, image.height,
+                0, 0, canvas.width, canvas.height);
+            scale = canvas.width / image.width;
+            qrdetect();
         };
 
-        const startbtn = document.getElementById('start');
-        const stopbtn = document.getElementById('stop');
-
-        startbtn.onclick = function()
+        function qrdetect()
         {
-            navigator.mediaDevices.getUserMedia(medias)
-                .then(function(stream)
-                {
-                    video.srcObject = stream;
-                    localStream = stream;
-
-                    if (window.BarcodeDetector)
-                    {
-                        const detector = new BarcodeDetector();
-                        captureTimer = setInterval(function()
-                        {
-                            ctx.drawImage(video, 0, 0, canvas
-                                .width, canvas.height);
-                            let scale = 1;
-                            detector.detect(video).then(
-                                function(barcodes)
-                                {
-                                    ctx.lineWidth = 2;
-                                    ctx.strokeStyle =
-                                        'red';
-                                    for (let barcode of barcodes)
-                                    {
-                                        ctx.beginPath();
-                                        ctx.rect(Math.floor(
-                                                barcode
-                                                .boundingBox
-                                                .x *
-                                                scale
-                                            ),
-                                            Math.floor(
-                                                barcode
-                                                .boundingBox
-                                                .y *
-                                                scale
-                                            ),
-                                            Math.floor(
-                                                barcode
-                                                .boundingBox
-                                                .width *
-                                                scale
-                                            ),
-                                            Math.floor(
-                                                barcode
-                                                .boundingBox
-                                                .height *
-                                                scale
-                                            ));
-                                        ctx.stroke();
-                                        console.log(
-                                            "value : " +
-                                            barcode.rawValue
-                                        );
-                                        console.log(
-                                            barcode);
-                                        document.getElementById(
-                                                'rawValue'
-                                            ).innerHTML =
-                                            convertLink(
-                                                barcode.rawValue
-                                            );
-                                    }
-                                }).catch(function(err)
-                            {
-                                console.error(err);
-                            });
-                        }, 1000 / fps);
-                    }
-                    else
-                    {
-                        console.error(
-                            'BarcodeDetection is not enable!');
-                    }
-                    startbtn.disabled = true;
-                    stopbtn.disabled = false;
-                }).catch(function(err)
-                {
-                    console.error(err);
-                    // リアカメラが無い場合はそれ以外のカメラ
-                    medias = {
-                        video:
-                        {
-                            width: 320,
-                            height: 240
-                        },
-                        audio: false
-                    };
-
-                });
-        };
-
-        stopbtn.onclick = function()
-        {
-            clearInterval(captureTimer);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            localStream.getTracks().forEach(function(track)
+            if (window.TextDetector == undefined)
             {
-                track.stop();
-            });
-            localStream = null;
-            video.srcObject = null;
-            startbtn.disabled = false;
-            stopbtn.disabled = true;
-
-        };
-
-        function convertLink(str)
-        {
-            const regexpUrl =
-                /((h?)(ttps?:\/\/[a-zA-Z0-9.\-_@:/~?%&;=+#',()*!]+))/g; // ']))/;
-            const regexpLink = function(all, url, h, href)
-            {
-                return '<a href="h' + href + '">' + url + '</a>';
+                console.error('Text Detection not supported');
+                return;
             }
-
-            return str.replace(regexpUrl, regexpLink);
-        };
-        // load時にstart状態にする
-        startbtn.click();
+            const textDetector = new TextDetector();
+            textDetector.detect(image)
+                .then(texts =>
+                {
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'red';
+                    for (let text of texts)
+                    {
+                        ctx.rect(Math.floor(text.boundingBox.x * scale),
+                            Math.floor(text.boundingBox.y * scale),
+                            Math.floor(text.boundingBox.width *
+                                scale),
+                            Math.floor(text.boundingBox.height *
+                                scale));
+                        ctx.stroke();
+                        console.log("value : " + text.rawValue);
+                        console.log(text);
+                        document.getElementById('rawValue').innerHTML =
+                            text.rawValue;
+                    }
+                })
+                .catch((e) =>
+                {
+                    console.error("Boo, TextDetection failed: " + e);
+                });
+        }
     </script>
 </body>
 </html>
